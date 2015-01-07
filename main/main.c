@@ -458,8 +458,20 @@ static PHP_INI_MH(OnUpdateOutputEncoding)
  */
 static PHP_INI_MH(OnUpdateErrorLog)
 {
+#ifndef HAVE_SYSLOG_H
+    if (!strcmp(new_value, "syslog")) {
+        php_printf("can't set error_log to 'syslog': syslog support missing\n");
+        return FAILURE;
+    }
+#endif
+#ifndef HAVE_JOURNALD
+    if (!strcmp(new_value, "journald")) {
+        php_printf("can't set error_log to 'journald': journald support missing\n");
+        return FAILURE;
+    }
+#endif
 	/* Only do the safemode/open_basedir check at runtime */
-	if ((stage == PHP_INI_STAGE_RUNTIME || stage == PHP_INI_STAGE_HTACCESS) && new_value && strcmp(new_value, "syslog")) {
+	if ((stage == PHP_INI_STAGE_RUNTIME || stage == PHP_INI_STAGE_HTACCESS) && new_value && strcmp(new_value, "syslog") && strcmp(new_value, "journald")) {
 		if (PG(open_basedir) && php_check_open_basedir(new_value TSRMLS_CC)) {
 			return FAILURE;
 		}
@@ -701,6 +713,13 @@ PHPAPI void php_log_err(char *log_message TSRMLS_DC)
 			PG(in_error_log) = 0;
 			return;
 		}
+#endif
+#ifdef HAVE_JOURNALD
+        if (!strcmp(PG(error_log), "journald")) {
+            php_journald_log(log_message TSRMLS_CC);
+            PG(in_error_log) = 0;
+            return;
+        }
 #endif
 		fd = VCWD_OPEN_MODE(PG(error_log), O_CREAT | O_APPEND | O_WRONLY, 0644);
 		if (fd != -1) {

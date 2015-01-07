@@ -26,7 +26,7 @@ struct key_value_s {
 struct fpm_global_config_s {
 	char *pid_file;
 	char *error_log;
-#ifdef HAVE_SYSLOG_H
+#if HAVE_SYSLOG_H || HAVE_JOURNALD
 	char *syslog_ident;
 	int syslog_facility;
 #endif

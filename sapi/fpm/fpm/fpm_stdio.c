@@ -298,6 +298,19 @@ int fpm_stdio_open_error_log(int reopen) /* {{{ */
 		return 0;
 	}
 #endif
+#ifdef HAVE_JOURNALD
+	if (!strcasecmp(fpm_global_config.error_log, "journald")) {
+		fpm_globals.error_log_fd = ZLOG_JOURNALD;
+#if HAVE_UNISTD_H
+		if (fpm_global_config.daemonize || (!isatty(STDERR_FILENO) && !fpm_globals.force_stderr)) {
+#else
+		if (fpm_global_config.daemonize) {
+#endif
+			zlog_set_fd(fpm_globals.error_log_fd);
+		}
+		return 0;
+	}
+#endif
 
 	fd = open(fpm_global_config.error_log, O_WRONLY | O_APPEND | O_CREAT, S_IRUSR | S_IWUSR);
 	if (0 > fd) {

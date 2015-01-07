@@ -66,13 +66,13 @@ static char *fpm_conf_set_string(zval *value, void **config, intptr_t offset);
 static char *fpm_conf_set_log_level(zval *value, void **config, intptr_t offset);
 static char *fpm_conf_set_rlimit_core(zval *value, void **config, intptr_t offset);
 static char *fpm_conf_set_pm(zval *value, void **config, intptr_t offset);
-#ifdef HAVE_SYSLOG_H
+#if HAVE_SYSLOG_H || HAVE_JOURNALD
 static char *fpm_conf_set_syslog_facility(zval *value, void **config, intptr_t offset);
 #endif
 
 struct fpm_global_config_s fpm_global_config = {
 	.daemonize = 1,
-#ifdef HAVE_SYSLOG_H
+#if HAVE_SYSLOG_H || HAVE_JOURNALD
 	.syslog_facility = -1,
 #endif
 	.process_max = 0,
@@ -94,7 +94,7 @@ static char *ini_include = NULL;
 static struct ini_value_parser_s ini_fpm_global_options[] = {
 	{ "pid",                         &fpm_conf_set_string,          GO(pid_file) },
 	{ "error_log",                   &fpm_conf_set_string,          GO(error_log) },
-#ifdef HAVE_SYSLOG_H
+#if HAVE_SYSLOG_H || HAVE_JOURNALD
 	{ "syslog.ident",                &fpm_conf_set_string,          GO(syslog_ident) },
 	{ "syslog.facility",             &fpm_conf_set_syslog_facility, GO(syslog_facility) },
 #endif
@@ -345,7 +345,7 @@ static char *fpm_conf_set_log_level(zval *value, void **config, intptr_t offset)
 }
 /* }}} */
 
-#ifdef HAVE_SYSLOG_H
+#if HAVE_SYSLOG_H || HAVE_JOURNALD
 static char *fpm_conf_set_syslog_facility(zval *value, void **config, intptr_t offset) /* {{{ */
 {
 	char *val = Z_STRVAL_P(value);
@@ -1079,8 +1079,23 @@ static int fpm_conf_process_all_pools() /* {{{ */
 				}
 			}
 			for (kv = wp->config->php_admin_values; kv; kv = kv->next) {
-				if (!strcasecmp(kv->key, "error_log") && !strcasecmp(kv->value, "syslog")) {
-					continue;
+				if (!strcasecmp(kv->key, "error_log")) {
+					if (!strcasecmp(kv->value, "syslog")) {
+#ifndef HAVE_SYSLOG_H
+						zlog(ZLOG_ERROR, "[pool %s] can't set error_log to 'syslog': syslog support missing", wp->config->name);
+						return -1;
+#else
+						continue;
+#endif
+					}
+					if (!strcasecmp(kv->value, "journald")) {
+#ifndef HAVE_JOURNALD
+						zlog(ZLOG_ERROR, "[pool %s] can't set error_log to 'journald': journald support missing", wp->config->name);
+						return -1;
+#else
+						continue;
+#endif
+					}
 				}
 				for (p = options; *p; p++) {
 					if (!strcasecmp(kv->key, *p)) {
@@ -1185,7 +1200,7 @@ static int fpm_conf_post_process(int force_daemon TSRMLS_DC) /* {{{ */
 	}
 #endif
 
-#ifdef HAVE_SYSLOG_H
+#if HAVE_SYSLOG_H || HAVE_JOURNALD
 	if (!fpm_global_config.syslog_ident) {
 		fpm_global_config.syslog_ident = strdup("php-fpm");
 	}
@@ -1194,7 +1209,7 @@ static int fpm_conf_post_process(int force_daemon TSRMLS_DC) /* {{{ */
 		fpm_global_config.syslog_facility = LOG_DAEMON;
 	}
 
-	if (strcasecmp(fpm_global_config.error_log, "syslog") != 0)
+	if (strcasecmp(fpm_global_config.error_log, "syslog") != 0 && strcasecmp(fpm_global_config.error_log, "journald") != 0)
 #endif
 	{
 		fpm_evaluate_full_path(&fpm_global_config.error_log, NULL, PHP_LOCALSTATEDIR, 0);
@@ -1237,7 +1252,7 @@ static void fpm_conf_cleanup(int which, void *arg) /* {{{ */
 	free(fpm_global_config.events_mechanism);
 	fpm_global_config.pid_file = 0;
 	fpm_global_config.error_log = 0;
-#ifdef HAVE_SYSLOG_H
+#if HAVE_SYSLOG_H || HAVE_JOURNALD
 	free(fpm_global_config.syslog_ident);
 	fpm_global_config.syslog_ident = 0;
 #endif
@@ -1555,7 +1570,7 @@ static void fpm_conf_dump() /* {{{ */
 	zlog(ZLOG_NOTICE, "[General]");
 	zlog(ZLOG_NOTICE, "\tpid = %s",                         STR2STR(fpm_global_config.pid_file));
 	zlog(ZLOG_NOTICE, "\terror_log = %s",                   STR2STR(fpm_global_config.error_log));
-#ifdef HAVE_SYSLOG_H
+#if HAVE_SYSLOG_H || HAVE_JOURNALD
 	zlog(ZLOG_NOTICE, "\tsyslog.ident = %s",                STR2STR(fpm_global_config.syslog_ident));
 	zlog(ZLOG_NOTICE, "\tsyslog.facility = %d",             fpm_global_config.syslog_facility); /* FIXME: convert to string */
 #endif

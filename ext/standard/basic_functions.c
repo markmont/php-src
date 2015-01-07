@@ -1549,6 +1549,23 @@ ZEND_BEGIN_ARG_INFO(arginfo_iptcparse, 0)
 	ZEND_ARG_INFO(0, iptcdata)
 ZEND_END_ARG_INFO()
 /* }}} */
+/* {{{ journald.c */
+#ifdef HAVE_JOURNALD
+ZEND_BEGIN_ARG_INFO_EX(arginfo_sd_journal_print, 0, 0, 2)
+	ZEND_ARG_INFO(0, priority)
+	ZEND_ARG_INFO(0, format)
+	ZEND_ARG_VARIADIC_INFO(0, args)
+ZEND_END_ARG_INFO()
+ZEND_BEGIN_ARG_INFO(arginfo_sd_journal_printv, 2)
+	ZEND_ARG_INFO(0, priority)
+	ZEND_ARG_INFO(0, format)
+	ZEND_ARG_INFO(0, args) /* ARRAY_INFO(0, args, 1) */
+ZEND_END_ARG_INFO()
+ZEND_BEGIN_ARG_INFO_EX(arginfo_sd_journal_send, 0, 0, 1)
+    ZEND_ARG_VARIADIC_INFO(0, args)
+ZEND_END_ARG_INFO()
+#endif
+/* }}} */
 /* {{{ lcg.c */
 ZEND_BEGIN_ARG_INFO(arginfo_lcg_value, 0)
 ZEND_END_ARG_INFO()
@@ -3358,6 +3375,13 @@ const zend_function_entry basic_functions[] = { /* {{{ */
 
 	PHP_FE(sys_get_temp_dir,												arginfo_sys_get_temp_dir)
 
+/* functions from journald.c */
+#ifdef HAVE_JOURNALD
+	PHP_FE(sd_journal_print,													arginfo_sd_journal_print)
+	PHP_FE(sd_journal_printv,													arginfo_sd_journal_printv)
+	PHP_FE(sd_journal_send,													arginfo_sd_journal_send)
+#endif
+
 	PHP_FE_END
 };
 /* }}} */
@@ -3632,6 +3656,9 @@ PHP_MINIT_FUNCTION(basic) /* {{{ */
 	BASIC_MINIT_SUBMODULE(dir)
 #ifdef HAVE_SYSLOG_H
 	BASIC_MINIT_SUBMODULE(syslog)
+#endif
+#ifdef HAVE_JOURNALD
+	BASIC_MINIT_SUBMODULE(journald)
 #endif
 	BASIC_MINIT_SUBMODULE(array)
 	BASIC_MINIT_SUBMODULE(assert)

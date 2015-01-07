@@ -42,6 +42,7 @@
 #endif
 
 #include "php_syslog.h"
+#include "php_journald.h"
 #include "php_mail.h"
 #include "php_ini.h"
 #include "php_string.h"
@@ -211,6 +212,12 @@ void php_mail_log_to_syslog(char *message) {
 #endif
 }
 
+void php_mail_log_to_journald(char *message TSRMLS_DC) {
+    /* Write 'message' to journald. */
+#ifdef HAVE_JOURNALD
+    php_journald_log(message TSRMLS_CC);
+#endif
+}
 
 void php_mail_log_to_file(char *filename, char *message, size_t message_size TSRMLS_DC) {
 	/* Write 'message' to the given file. */
@@ -267,6 +274,11 @@ PHPAPI int php_mail(char *to, char *subject, char *message, char *headers, char 
 			/* Drop the final space when logging to syslog. */
 			tmp[l - 1] = 0;
 			php_mail_log_to_syslog(tmp);
+		}
+		else if (!strcmp(mail_log, "journald")) {
+			/* Drop the final space when logging to journald. */
+			tmp[l - 1] = 0;
+			php_mail_log_to_journald(tmp TSRMLS_CC);
 		}
 		else {
 			/* Convert the final space to a newline when logging to file. */
