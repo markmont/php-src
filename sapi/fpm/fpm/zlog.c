@@ -11,11 +11,18 @@
 #include <stdarg.h>
 #include <sys/time.h>
 #include <errno.h>
+#if HAVE_JOURNALD
+#define SD_JOURNAL_SUPPRESS_LOCATION
+#include <systemd/sd-journal.h>
+#endif
 
 #include "php_syslog.h"
 
 #include "zlog.h"
 #include "fpm.h"
+#if HAVE_JOURNALD
+#include "fpm_conf.h"
+#endif
 
 #define MAX_LINE_LENGTH 1024
 
@@ -32,7 +39,7 @@ static const char *level_names[] = {
 	[ZLOG_ALERT]   = "ALERT",
 };
 
-#ifdef HAVE_SYSLOG_H
+#if HAVE_SYSLOG_H || HAVE_JOURNALD
 const int syslog_priorities[] = {
 	[ZLOG_DEBUG]   = LOG_DEBUG,
 	[ZLOG_NOTICE]  = LOG_NOTICE,
@@ -136,6 +143,12 @@ void zlog_ex(const char *function, int line, int flags, const char *fmt, ...) /*
 		}
 	} else
 #endif
+#ifdef HAVE_JOURNALD
+	if (zlog_fd == ZLOG_JOURNALD) {
+		len = 0;
+		*buf = '\0';
+	} else
+#endif
 	{
 		if (!fpm_globals.is_child) {
 			gettimeofday(&tv, 0);
@@ -184,6 +197,30 @@ void zlog_ex(const char *function, int line, int flags, const char *fmt, ...) /*
 		buf[len] = '\0';
 		php_syslog(syslog_priorities[zlog_level], "%s", buf);
 		buf[len++] = '\n';
+	} else 
+#endif
+#ifdef HAVE_JOURNALD
+	if (zlog_fd == ZLOG_JOURNALD) {
+		if (flags & ZLOG_HAVE_ERRNO) {
+			sd_journal_send(
+				"MESSAGE=%s", buf,
+				"ERRNO=%d", saved_errno,
+				"SYSLOG_IDENTIFIER=%s", fpm_global_config.syslog_ident,
+				"SYSLOG_FACILITY=%d", LOG_FAC(fpm_global_config.syslog_facility),
+				"PRIORITY=%d", syslog_priorities[zlog_level],
+				"CODE_LINE=%u", line,
+				"CODE_FUNC=%s", function,
+				NULL);
+		} else {
+			sd_journal_send(
+				"MESSAGE=%s", buf,
+				"SYSLOG_IDENTIFIER=%s", fpm_global_config.syslog_ident,
+				"SYSLOG_FACILITY=%d", LOG_FAC(fpm_global_config.syslog_facility),
+				"PRIORITY=%d", syslog_priorities[zlog_level],
+				"CODE_LINE=%u", line,
+				"CODE_FUNC=%s", function,
+				NULL);
+		}
 	} else 
 #endif
 	{

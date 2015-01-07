@@ -20,7 +20,7 @@ size_t zlog_print_time(struct timeval *tv, char *timebuf, size_t timebuf_len);
 void zlog_ex(const char *function, int line, int flags, const char *fmt, ...)
 		__attribute__ ((format(printf,4,5)));
 
-#ifdef HAVE_SYSLOG_H
+#if HAVE_SYSLOG_H || HAVE_JOURNALD
 extern const int syslog_priorities[];
 #endif
 
@@ -40,6 +40,10 @@ enum {
 
 #ifdef HAVE_SYSLOG_H
 #define ZLOG_SYSLOG -2
+#endif
+
+#ifdef HAVE_JOURNALD
+#define ZLOG_JOURNALD -3
 #endif
 
 #endif

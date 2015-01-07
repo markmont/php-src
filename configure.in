@@ -1001,6 +1001,38 @@ else
   AC_MSG_RESULT([using system default])
 fi
 
+PHP_ARG_ENABLE(journald, whether to enable journald support,
+[  --enable-journald       Enable journald support], auto, no)
+
+if test "$PHP_JOURNALD" != "no"; then
+  if test -z "$PKG_CONFIG"; then
+    AC_PATH_PROG(PKG_CONFIG, pkg-config, no)
+  fi
+  unset JOURNALD_LIBS
+  unset JOURNALD_INCS
+
+  if test -x "$PKG_CONFIG" && $PKG_CONFIG --exists libsystemd-journal; then
+    AC_MSG_CHECKING([for libsystemd-journal])
+    JOURNALD_LIBS=`$PKG_CONFIG --libs libsystemd-journal`
+    JOURNALD_INCS=`$PKG_CONFIG --cflags-only-I libsystemd-journal`
+    JOURNALD_VERS=`$PKG_CONFIG --modversion libsystemd-journal`
+    AC_MSG_RESULT([version $JOURNALD_VERS])
+  fi
+
+  dnl PHP's journald support requires the syslog constants be defined
+  AC_CHECK_HEADERS(syslog.h, [journald_have_syslog="yes"], [journald_have_syslog="no"])
+  AC_CHECK_HEADERS(systemd/sd-journal.h, [HAVE_SD_JOURNAL_H="yes"], [HAVE_SD_JOURNAL_H="no"])
+  if test "$journald_have_syslog" = "no" || test "$HAVE_SD_JOURNAL_H" = "no" || test -z "${JOURNALD_LIBS}"; then
+    if test "$PHP_JOURNALD" != "auto"; then
+      AC_MSG_ERROR([Your system does not support one of journald or syslog.])
+    fi
+  else
+    AC_DEFINE(HAVE_JOURNALD, 1, [use journald integration])
+    PHP_EVAL_LIBLINE($JOURNALD_LIBS)
+    PHP_EVAL_INCLINE($JOURNALD_INCS)
+  fi
+fi
+
 dnl Extension configuration.
 dnl -------------------------------------------------------------------------
 

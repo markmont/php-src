@@ -31,6 +31,7 @@
 #include "exec.h"
 #include "file.h"
 #include "php_ext_syslog.h"
+#include "php_journald.h"
 #include "php_filestat.h"
 #include "php_browscap.h"
 #include "pack.h"
